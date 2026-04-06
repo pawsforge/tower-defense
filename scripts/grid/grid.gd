@@ -12,42 +12,40 @@ enum HoverMode {
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
-
 const EMPTY := 0
 const BLOCKED := 1
-
 const DIRS: Array[Vector2i] = [
 	Vector2i(1, 0),
 	Vector2i(-1, 0),
 	Vector2i(0, 1),
 	Vector2i(0, -1),
 ]
+const INVALID_FLASH_DURATION := 0.18
 
 var grid: Array = []
-
+@warning_ignore("integer_division")
 var spawn: Vector2i = Vector2i(0, GRID_HEIGHT / 2)
+@warning_ignore("integer_division")
 var goal: Vector2i = Vector2i(GRID_WIDTH - 1, GRID_HEIGHT / 2)
-
 var hovered_cell: Vector2i = Vector2i(-1, -1)
 var hovered_in_bounds: bool = false
-
 var hover_mode: HoverMode = HoverMode.NONE
-
 var round_active: bool = false
 var debug_path: Array[Vector2i] = []
-
 var invalid_flash_time: float = 0.0
-const INVALID_FLASH_DURATION := 0.18
+
 
 func _ready():
 	_init_grid()
 	debug_path = get_grid_path()
+
 
 func _process(delta: float):
 	if invalid_flash_time > 0.0:
 		invalid_flash_time = maxf(0.0, invalid_flash_time - delta)
 
 	queue_redraw()
+
 
 func _input(event):
 	if event is InputEventMouseMotion:
@@ -76,141 +74,6 @@ func _input(event):
 		else:
 			_trigger_invalid_feedback()
 
-func _after_grid_changed():
-	_update_hover()
-	debug_path = get_grid_path()
-	queue_redraw()
-	emit_signal("grid_changed")
-
-func _init_grid():
-	grid.clear()
-	for y in GRID_HEIGHT:
-		var row: Array[int] = []
-		for x in GRID_WIDTH:
-			row.append(EMPTY)
-		grid.append(row)
-
-func _update_hover():
-	var local_pos: Vector2 = to_local(get_global_mouse_position())
-	var cell: Vector2i = local_to_grid(local_pos)
-
-	hovered_cell = cell
-	hovered_in_bounds = _in_bounds(cell)
-	hover_mode = HoverMode.NONE
-
-	if not hovered_in_bounds:
-		queue_redraw()
-		return
-
-	if cell == spawn or cell == goal:
-		hover_mode = HoverMode.PLACE_INVALID
-		queue_redraw()
-		return
-
-	if grid[cell.y][cell.x] == BLOCKED:
-		hover_mode = HoverMode.REMOVE
-		queue_redraw()
-		return
-
-	if _can_place(cell):
-		hover_mode = HoverMode.PLACE_VALID
-	else:
-		hover_mode = HoverMode.PLACE_INVALID
-
-	queue_redraw()
-
-func _can_place(cell: Vector2i) -> bool:
-	if not _in_bounds(cell):
-		return false
-
-	if cell == spawn or cell == goal:
-		return false
-
-	if grid[cell.y][cell.x] == BLOCKED:
-		return false
-
-	if _is_cell_occupied_by_enemy(cell):
-		return false
-
-	grid[cell.y][cell.x] = BLOCKED
-
-	var valid := true
-
-	if not _path_exists_from(spawn):
-		valid = false
-	else:
-		for enemy in _get_active_enemies():
-			var anchor_cell: Vector2i = enemy.get_repath_anchor_cell()
-			if not _path_exists_from(anchor_cell):
-				valid = false
-				break
-
-	grid[cell.y][cell.x] = EMPTY
-	return valid
-
-func _is_cell_occupied_by_enemy(cell: Vector2i) -> bool:
-	for enemy in _get_active_enemies():
-		for occupied_cell in enemy.get_occupied_cells():
-			if occupied_cell == cell:
-				return true
-	return false
-
-func _get_active_enemies() -> Array:
-	var enemies: Array = []
-
-	for child in get_children():
-		if child.has_method("get_occupied_cells") and child.has_method("get_repath_anchor_cell"):
-			enemies.append(child)
-
-	return enemies
-
-func _trigger_invalid_feedback():
-	invalid_flash_time = INVALID_FLASH_DURATION
-	queue_redraw()
-
-func _path_exists() -> bool:
-	return _path_exists_from(spawn)
-
-func _path_exists_from(start_cell: Vector2i) -> bool:
-	var visited: Dictionary = {}
-	var queue: Array[Vector2i] = [start_cell]
-
-	visited[start_cell] = true
-
-	while queue.size() > 0:
-		var current: Vector2i = queue.pop_front()
-
-		if current == goal:
-			return true
-
-		for dir in DIRS:
-			var next: Vector2i = current + dir
-
-			if not _in_bounds(next):
-				continue
-
-			if visited.has(next):
-				continue
-
-			if grid[next.y][next.x] == BLOCKED:
-				continue
-
-			visited[next] = true
-			queue.append(next)
-
-	return false
-
-func _in_bounds(cell: Vector2i) -> bool:
-	return cell.x >= 0 and cell.x < GRID_WIDTH and cell.y >= 0 and cell.y < GRID_HEIGHT
-
-func local_to_grid(pos: Vector2) -> Vector2i:
-	return Vector2i(pos / TILE_SIZE)
-
-func grid_to_local(cell: Vector2i) -> Vector2:
-	return Vector2(cell.x, cell.y) * TILE_SIZE
-
-func get_grid_pixel_size() -> Vector2:
-	return Vector2(GRID_WIDTH, GRID_HEIGHT) * TILE_SIZE
 
 func _draw():
 	var base_empty := Color(0.15, 0.15, 0.15)
@@ -266,7 +129,7 @@ func _draw():
 	var shaft_height := TILE_SIZE * 0.58
 	var shaft_pos := goal_rect.position + Vector2(
 		(TILE_SIZE - shaft_width) / 2.0,
-		TILE_SIZE * 0.28
+		TILE_SIZE * 0.28,
 	)
 	var shaft_rect := Rect2(shaft_pos, Vector2(shaft_width, shaft_height))
 	draw_rect(shaft_rect, tower_mid_color)
@@ -276,7 +139,7 @@ func _draw():
 	var top_height := TILE_SIZE * 0.16
 	var top_pos := goal_rect.position + Vector2(
 		(TILE_SIZE - top_width) / 2.0,
-		TILE_SIZE * 0.18
+		TILE_SIZE * 0.18,
 	)
 	var top_rect := Rect2(top_pos, Vector2(top_width, top_height))
 	draw_rect(top_rect, tower_top_color)
@@ -288,21 +151,21 @@ func _draw():
 		var crenel_x := top_rect.position.x + TILE_SIZE * 0.06 + i * TILE_SIZE * 0.22
 		var crenel_rect := Rect2(
 			Vector2(crenel_x, top_rect.position.y - crenel_height),
-			Vector2(crenel_width, crenel_height)
+			Vector2(crenel_width, crenel_height),
 		)
 		draw_rect(crenel_rect, tower_top_color)
 
 	# glowing window
 	var window_rect := Rect2(
 		goal_rect.position + Vector2(TILE_SIZE * 0.42, TILE_SIZE * 0.48),
-		Vector2(TILE_SIZE * 0.16, TILE_SIZE * 0.2)
+		Vector2(TILE_SIZE * 0.16, TILE_SIZE * 0.2),
 	)
 	draw_rect(window_rect, window_color)
 
 	# crystal / beacon on top
 	var crystal_rect := Rect2(
 		goal_rect.position + Vector2(TILE_SIZE * 0.44, TILE_SIZE * 0.06),
-		Vector2(TILE_SIZE * 0.12, TILE_SIZE * 0.12)
+		Vector2(TILE_SIZE * 0.12, TILE_SIZE * 0.12),
 	)
 	draw_rect(crystal_rect, crystal_color)
 
@@ -323,25 +186,36 @@ func _draw():
 			HoverMode.REMOVE:
 				draw_rect(hover_rect, Color(1.0, 0.85, 0.2, 0.22))
 				draw_rect(hover_rect, Color(1.0, 0.85, 0.2), false, 3.0)
-
 			HoverMode.PLACE_VALID:
 				draw_rect(hover_rect, Color(0.3, 1.0, 0.3, 0.2))
 				draw_rect(hover_rect, Color(0.3, 1.0, 0.3), false, 3.0)
-
 			HoverMode.PLACE_INVALID:
 				draw_rect(hover_rect, Color(1.0, 0.3, 0.3, 0.25))
 				draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
-
 			HoverMode.NONE:
 				pass
+
+
+func local_to_grid(pos: Vector2) -> Vector2i:
+	return Vector2i(pos / TILE_SIZE)
+
+
+func grid_to_local(cell: Vector2i) -> Vector2:
+	return Vector2(cell.x, cell.y) * TILE_SIZE
+
+
+func get_grid_pixel_size() -> Vector2:
+	return Vector2(GRID_WIDTH, GRID_HEIGHT) * TILE_SIZE
+
 
 func get_grid_path() -> Array[Vector2i]:
 	return get_grid_path_from(spawn)
 
+
 func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
-	var visited: Dictionary = {}
+	var visited: Dictionary = { }
 	var queue: Array[Vector2i] = [start_cell]
-	var came_from: Dictionary = {}
+	var came_from: Dictionary = { }
 
 	visited[start_cell] = true
 
@@ -367,7 +241,145 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 			came_from[next] = current
 			queue.append(next)
 
-	return []  # no path (shouldn't happen if your placement rules are correct)
+	return [] # no path (shouldn't happen if your placement rules are correct)
+
+
+func _after_grid_changed():
+	_update_hover()
+	debug_path = get_grid_path()
+	queue_redraw()
+	emit_signal("grid_changed")
+
+
+func _init_grid():
+	grid.clear()
+	for y in GRID_HEIGHT:
+		var row: Array[int] = []
+		for x in GRID_WIDTH:
+			row.append(EMPTY)
+		grid.append(row)
+
+
+func _update_hover():
+	var local_pos: Vector2 = to_local(get_global_mouse_position())
+	var cell: Vector2i = local_to_grid(local_pos)
+
+	hovered_cell = cell
+	hovered_in_bounds = _in_bounds(cell)
+	hover_mode = HoverMode.NONE
+
+	if not hovered_in_bounds:
+		queue_redraw()
+		return
+
+	if cell == spawn or cell == goal:
+		hover_mode = HoverMode.PLACE_INVALID
+		queue_redraw()
+		return
+
+	if grid[cell.y][cell.x] == BLOCKED:
+		hover_mode = HoverMode.REMOVE
+		queue_redraw()
+		return
+
+	if _can_place(cell):
+		hover_mode = HoverMode.PLACE_VALID
+	else:
+		hover_mode = HoverMode.PLACE_INVALID
+
+	queue_redraw()
+
+
+func _can_place(cell: Vector2i) -> bool:
+	if not _in_bounds(cell):
+		return false
+
+	if cell == spawn or cell == goal:
+		return false
+
+	if grid[cell.y][cell.x] == BLOCKED:
+		return false
+
+	if _is_cell_occupied_by_enemy(cell):
+		return false
+
+	grid[cell.y][cell.x] = BLOCKED
+
+	var valid := true
+
+	if not _path_exists_from(spawn):
+		valid = false
+	else:
+		for enemy in _get_active_enemies():
+			var anchor_cell: Vector2i = enemy.get_repath_anchor_cell()
+			if not _path_exists_from(anchor_cell):
+				valid = false
+				break
+
+	grid[cell.y][cell.x] = EMPTY
+	return valid
+
+
+func _is_cell_occupied_by_enemy(cell: Vector2i) -> bool:
+	for enemy in _get_active_enemies():
+		for occupied_cell in enemy.get_occupied_cells():
+			if occupied_cell == cell:
+				return true
+	return false
+
+
+func _get_active_enemies() -> Array:
+	var enemies: Array = []
+
+	for child in get_children():
+		if child.has_method("get_occupied_cells") and child.has_method("get_repath_anchor_cell"):
+			enemies.append(child)
+
+	return enemies
+
+
+func _trigger_invalid_feedback():
+	invalid_flash_time = INVALID_FLASH_DURATION
+	queue_redraw()
+
+
+func _path_exists() -> bool:
+	return _path_exists_from(spawn)
+
+
+func _path_exists_from(start_cell: Vector2i) -> bool:
+	var visited: Dictionary = { }
+	var queue: Array[Vector2i] = [start_cell]
+
+	visited[start_cell] = true
+
+	while queue.size() > 0:
+		var current: Vector2i = queue.pop_front()
+
+		if current == goal:
+			return true
+
+		for dir in DIRS:
+			var next: Vector2i = current + dir
+
+			if not _in_bounds(next):
+				continue
+
+			if visited.has(next):
+				continue
+
+			if grid[next.y][next.x] == BLOCKED:
+				continue
+
+			visited[next] = true
+			queue.append(next)
+
+	return false
+
+
+func _in_bounds(cell: Vector2i) -> bool:
+	return cell.x >= 0 and cell.x < GRID_WIDTH and cell.y >= 0 and cell.y < GRID_HEIGHT
+
 
 func _reconstruct_path(came_from: Dictionary, current: Vector2i) -> Array[Vector2i]:
 	var path: Array[Vector2i] = [current]
