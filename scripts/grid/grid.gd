@@ -2,6 +2,15 @@ extends Node2D
 
 signal grid_changed
 
+enum HoverMode {
+	NONE,
+	PLACE_VALID,
+	PLACE_INVALID,
+	REMOVE,
+}
+
+var hover_mode: HoverMode = HoverMode.NONE
+
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
@@ -23,7 +32,6 @@ var goal: Vector2i = Vector2i(GRID_WIDTH - 1, GRID_HEIGHT / 2)
 
 var hovered_cell: Vector2i = Vector2i(-1, -1)
 var hovered_in_bounds: bool = false
-var hovered_can_place: bool = false
 
 var building_enabled: bool = true
 
@@ -93,23 +101,27 @@ func _update_hover():
 
 	hovered_cell = cell
 	hovered_in_bounds = _in_bounds(cell)
+	hover_mode = HoverMode.NONE
 
 	if not hovered_in_bounds:
-		hovered_can_place = false
 		queue_redraw()
 		return
 
 	if cell == spawn or cell == goal:
-		hovered_can_place = false
+		hover_mode = HoverMode.PLACE_INVALID
 		queue_redraw()
 		return
 
 	if grid[cell.y][cell.x] == BLOCKED:
-		hovered_can_place = false
+		hover_mode = HoverMode.REMOVE
 		queue_redraw()
 		return
 
-	hovered_can_place = _can_place(cell)
+	if building_enabled and _can_place(cell):
+		hover_mode = HoverMode.PLACE_VALID
+	else:
+		hover_mode = HoverMode.PLACE_INVALID
+
 	queue_redraw()
 
 func _can_place(cell: Vector2i) -> bool:
@@ -267,21 +279,24 @@ func _draw():
 			draw_circle(center, 6.0, Color(1.0, 1.0, 0.2))
 
 	# Hover overlay
-	if building_enabled and hovered_in_bounds:
+	if hovered_in_bounds:
 		var hover_rect := Rect2(grid_to_local(hovered_cell), Vector2(TILE_SIZE, TILE_SIZE))
 
-		if hovered_cell == spawn or hovered_cell == goal:
-			draw_rect(hover_rect, Color(1.0, 0.3, 0.3, 0.25))
-			draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
-		elif grid[hovered_cell.y][hovered_cell.x] == BLOCKED:
-			draw_rect(hover_rect, Color(1.0, 0.9, 0.2, 0.2))
-			draw_rect(hover_rect, Color(1.0, 0.9, 0.2), false, 3.0)
-		elif hovered_can_place:
-			draw_rect(hover_rect, Color(0.3, 1.0, 0.3, 0.2))
-			draw_rect(hover_rect, Color(0.3, 1.0, 0.3), false, 3.0)
-		else:
-			draw_rect(hover_rect, Color(1.0, 0.3, 0.3, 0.25))
-			draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
+		match hover_mode:
+			HoverMode.REMOVE:
+				draw_rect(hover_rect, Color(1.0, 0.85, 0.2, 0.22))
+				draw_rect(hover_rect, Color(1.0, 0.85, 0.2), false, 3.0)
+
+			HoverMode.PLACE_VALID:
+				draw_rect(hover_rect, Color(0.3, 1.0, 0.3, 0.2))
+				draw_rect(hover_rect, Color(0.3, 1.0, 0.3), false, 3.0)
+
+			HoverMode.PLACE_INVALID:
+				draw_rect(hover_rect, Color(1.0, 0.3, 0.3, 0.25))
+				draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
+
+			HoverMode.NONE:
+				pass
 
 func get_grid_path() -> Array[Vector2i]:
 	return get_grid_path_from(spawn)

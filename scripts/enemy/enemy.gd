@@ -45,15 +45,19 @@ func repath(new_path: Array[Vector2i]):
 		return
 
 	path = new_path
-
-	var first_pos: Vector2 = grid_to_local(path[0])
-	if position.distance_to(first_pos) < 2.0:
-		path_index = 1
-	else:
-		path_index = 0
+	path_index = 0
 
 func grid_to_local(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
 func _draw():
 	draw_circle(Vector2.ZERO, tile_size * 0.25, Color(1.0, 0.2, 0.2))
+
+func get_repath_anchor_cell() -> Vector2i:
+	if path_index < path.size():
+		return path[path_index]
+
+	if path.size() > 0:
+		return path[path.size() - 1]
+
+	return Vector2i.ZERO
