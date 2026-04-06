@@ -1,5 +1,7 @@
 extends Node2D
 
+signal grid_changed
+
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
@@ -41,9 +43,6 @@ func _process(delta: float):
 	queue_redraw()
 
 func _input(event):
-	if not building_enabled:
-		return
-	
 	if event is InputEventMouseMotion:
 		_update_hover()
 
@@ -59,17 +58,26 @@ func _input(event):
 			_trigger_invalid_feedback()
 			return
 
-		if grid[cell.y][cell.x] == EMPTY:
-			if _can_place(cell):
-				grid[cell.y][cell.x] = BLOCKED
-			else:
-				_trigger_invalid_feedback()
-		else:
+		if grid[cell.y][cell.x] == BLOCKED:
 			grid[cell.y][cell.x] = EMPTY
+			_update_hover()
+			debug_path = get_grid_path()
+			queue_redraw()
+			emit_signal("grid_changed")
+			return
 
-		_update_hover()
-		debug_path = get_grid_path()
-		queue_redraw()
+		if not building_enabled:
+			_trigger_invalid_feedback()
+			return
+
+		if _can_place(cell):
+			grid[cell.y][cell.x] = BLOCKED
+			_update_hover()
+			debug_path = get_grid_path()
+			queue_redraw()
+			emit_signal("grid_changed")
+		else:
+			_trigger_invalid_feedback()
 
 func _init_grid():
 	grid.clear()
@@ -276,11 +284,14 @@ func _draw():
 			draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
 
 func get_grid_path() -> Array[Vector2i]:
+	return get_grid_path_from(spawn)
+
+func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 	var visited: Dictionary = {}
-	var queue: Array[Vector2i] = [spawn]
+	var queue: Array[Vector2i] = [start_cell]
 	var came_from: Dictionary = {}
 
-	visited[spawn] = true
+	visited[start_cell] = true
 
 	while queue.size() > 0:
 		var current: Vector2i = queue.pop_front()
