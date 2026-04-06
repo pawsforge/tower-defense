@@ -9,8 +9,6 @@ enum HoverMode {
 	REMOVE,
 }
 
-var hover_mode: HoverMode = HoverMode.NONE
-
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
@@ -33,8 +31,9 @@ var goal: Vector2i = Vector2i(GRID_WIDTH - 1, GRID_HEIGHT / 2)
 var hovered_cell: Vector2i = Vector2i(-1, -1)
 var hovered_in_bounds: bool = false
 
-var building_enabled: bool = true
+var hover_mode: HoverMode = HoverMode.NONE
 
+var round_active: bool = false
 var debug_path: Array[Vector2i] = []
 
 var invalid_flash_time: float = 0.0
@@ -68,24 +67,20 @@ func _input(event):
 
 		if grid[cell.y][cell.x] == BLOCKED:
 			grid[cell.y][cell.x] = EMPTY
-			_update_hover()
-			debug_path = get_grid_path()
-			queue_redraw()
-			emit_signal("grid_changed")
-			return
-
-		if not building_enabled:
-			_trigger_invalid_feedback()
+			_after_grid_changed()
 			return
 
 		if _can_place(cell):
 			grid[cell.y][cell.x] = BLOCKED
-			_update_hover()
-			debug_path = get_grid_path()
-			queue_redraw()
-			emit_signal("grid_changed")
+			_after_grid_changed()
 		else:
 			_trigger_invalid_feedback()
+
+func _after_grid_changed():
+	_update_hover()
+	debug_path = get_grid_path()
+	queue_redraw()
+	emit_signal("grid_changed")
 
 func _init_grid():
 	grid.clear()
@@ -117,7 +112,7 @@ func _update_hover():
 		queue_redraw()
 		return
 
-	if building_enabled and _can_place(cell):
+	if _can_place(cell):
 		hover_mode = HoverMode.PLACE_VALID
 	else:
 		hover_mode = HoverMode.PLACE_INVALID
@@ -125,20 +120,62 @@ func _update_hover():
 	queue_redraw()
 
 func _can_place(cell: Vector2i) -> bool:
+	if not _in_bounds(cell):
+		return false
+
+	if cell == spawn or cell == goal:
+		return false
+
+	if grid[cell.y][cell.x] == BLOCKED:
+		return false
+
+	if _is_cell_occupied_by_enemy(cell):
+		return false
+
 	grid[cell.y][cell.x] = BLOCKED
-	var valid: bool = _path_exists()
+
+	var valid := true
+
+	if not _path_exists_from(spawn):
+		valid = false
+	else:
+		for enemy in _get_active_enemies():
+			var anchor_cell: Vector2i = enemy.get_repath_anchor_cell()
+			if not _path_exists_from(anchor_cell):
+				valid = false
+				break
+
 	grid[cell.y][cell.x] = EMPTY
 	return valid
+
+func _is_cell_occupied_by_enemy(cell: Vector2i) -> bool:
+	for enemy in _get_active_enemies():
+		for occupied_cell in enemy.get_occupied_cells():
+			if occupied_cell == cell:
+				return true
+	return false
+
+func _get_active_enemies() -> Array:
+	var enemies: Array = []
+
+	for child in get_children():
+		if child.has_method("get_occupied_cells") and child.has_method("get_repath_anchor_cell"):
+			enemies.append(child)
+
+	return enemies
 
 func _trigger_invalid_feedback():
 	invalid_flash_time = INVALID_FLASH_DURATION
 	queue_redraw()
 
 func _path_exists() -> bool:
-	var visited: Dictionary = {}
-	var queue: Array[Vector2i] = [spawn]
+	return _path_exists_from(spawn)
 
-	visited[spawn] = true
+func _path_exists_from(start_cell: Vector2i) -> bool:
+	var visited: Dictionary = {}
+	var queue: Array[Vector2i] = [start_cell]
+
+	visited[start_cell] = true
 
 	while queue.size() > 0:
 		var current: Vector2i = queue.pop_front()
@@ -271,9 +308,9 @@ func _draw():
 
 	# outline
 	draw_rect(goal_rect, Color(0.1, 0.1, 0.15), false, 2.0)
-	
-	# Debug path
-	if building_enabled:
+
+	# Debug path only during build phase
+	if not round_active:
 		for cell in debug_path:
 			var center := grid_to_local(cell) + Vector2(TILE_SIZE, TILE_SIZE) * 0.5
 			draw_circle(center, 6.0, Color(1.0, 1.0, 0.2))

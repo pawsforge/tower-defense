@@ -32,7 +32,7 @@ func start_round():
 	enemies_spawned = 0
 	enemies_finished = 0
 
-	$Grid.building_enabled = false
+	$Grid.round_active = true
 	$Grid.queue_redraw()
 
 	print("Round started")
@@ -45,7 +45,7 @@ func start_round():
 
 func end_round():
 	round_active = false
-	$Grid.building_enabled = true
+	$Grid.round_active = false
 	$Grid.debug_path = $Grid.get_grid_path()
 	$Grid.queue_redraw()
 	$RoundSpawnTimer.stop()

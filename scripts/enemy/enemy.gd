@@ -38,7 +38,10 @@ func _process(delta: float):
 	queue_redraw()
 
 func get_current_cell() -> Vector2i:
-	return Vector2i(position / tile_size)
+	return Vector2i(
+		int(position.x / tile_size),
+		int(position.y / tile_size)
+	)
 
 func repath(new_path: Array[Vector2i]):
 	if new_path.is_empty():
@@ -61,3 +64,15 @@ func get_repath_anchor_cell() -> Vector2i:
 		return path[path.size() - 1]
 
 	return Vector2i.ZERO
+
+func get_occupied_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+
+	var current_cell := get_current_cell()
+	cells.append(current_cell)
+
+	var anchor_cell := get_repath_anchor_cell()
+	if anchor_cell != current_cell:
+		cells.append(anchor_cell)
+
+	return cells
