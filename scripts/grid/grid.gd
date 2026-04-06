@@ -226,20 +226,20 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 			return _reconstruct_path(came_from, current)
 
 		for dir in DIRS:
-			var next: Vector2i = current + dir
+			var next_cell: Vector2i = current + dir
 
-			if not _in_bounds(next):
+			if not _in_bounds(next_cell):
 				continue
 
-			if visited.has(next):
+			if visited.has(next_cell):
 				continue
 
-			if grid[next.y][next.x] == BLOCKED:
+			if grid[next_cell.y][next_cell.x] == BLOCKED:
 				continue
 
-			visited[next] = true
-			came_from[next] = current
-			queue.append(next)
+			visited[next_cell] = true
+			came_from[next_cell] = current
+			queue.append(next_cell)
 
 	return [] # no path (shouldn't happen if your placement rules are correct)
 
@@ -343,38 +343,8 @@ func _trigger_invalid_feedback():
 	queue_redraw()
 
 
-func _path_exists() -> bool:
-	return _path_exists_from(spawn)
-
-
 func _path_exists_from(start_cell: Vector2i) -> bool:
-	var visited: Dictionary = { }
-	var queue: Array[Vector2i] = [start_cell]
-
-	visited[start_cell] = true
-
-	while queue.size() > 0:
-		var current: Vector2i = queue.pop_front()
-
-		if current == goal:
-			return true
-
-		for dir in DIRS:
-			var next: Vector2i = current + dir
-
-			if not _in_bounds(next):
-				continue
-
-			if visited.has(next):
-				continue
-
-			if grid[next.y][next.x] == BLOCKED:
-				continue
-
-			visited[next] = true
-			queue.append(next)
-
-	return false
+	return not get_grid_path_from(start_cell).is_empty()
 
 
 func _in_bounds(cell: Vector2i) -> bool:
