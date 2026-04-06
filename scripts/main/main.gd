@@ -53,6 +53,8 @@ func end_round():
 	print("Round ended")
 
 func _spawn_enemy():
+	current_round_path = $Grid.get_grid_path()
+
 	var enemy = EnemyScene.instantiate()
 	enemy.path = current_round_path
 	enemy.tile_size = $Grid.TILE_SIZE
@@ -82,14 +84,17 @@ func _on_enemy_reached_goal():
 		end_round()
 
 func _on_grid_changed():
-	$Grid.debug_path = $Grid.get_grid_path()
+	var spawn_path: Array[Vector2i] = $Grid.get_grid_path()
+	$Grid.debug_path = spawn_path
 	$Grid.queue_redraw()
+
+	current_round_path = spawn_path
 
 	if not round_active:
 		return
 
 	for child in $Grid.get_children():
-		if child.has_method("get_current_cell") and child.has_method("repath"):
-			var current_cell: Vector2i = child.get_current_cell()
-			var new_path: Array[Vector2i] = $Grid.get_grid_path_from(current_cell)
+		if child.has_method("get_repath_anchor_cell") and child.has_method("repath"):
+			var anchor_cell: Vector2i = child.get_repath_anchor_cell()
+			var new_path: Array[Vector2i] = $Grid.get_grid_path_from(anchor_cell)
 			child.repath(new_path)
