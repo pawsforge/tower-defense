@@ -7,10 +7,12 @@ var path_index: int = 0
 var speed: float = 120.0
 var tile_size: int = 64
 
+
 func _ready():
 	if path.size() > 0:
 		position = grid_to_local(path[0])
 		path_index = 1
+
 
 func _process(delta: float):
 	if path_index >= path.size():
@@ -37,11 +39,17 @@ func _process(delta: float):
 
 	queue_redraw()
 
+
+func _draw():
+	draw_circle(Vector2.ZERO, tile_size * 0.25, Color(1.0, 0.2, 0.2))
+
+
 func get_current_cell() -> Vector2i:
 	return Vector2i(
 		int(position.x / tile_size),
-		int(position.y / tile_size)
+		int(position.y / tile_size),
 	)
+
 
 func repath(new_path: Array[Vector2i]):
 	if new_path.is_empty():
@@ -50,11 +58,10 @@ func repath(new_path: Array[Vector2i]):
 	path = new_path
 	path_index = 0
 
+
 func grid_to_local(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
-func _draw():
-	draw_circle(Vector2.ZERO, tile_size * 0.25, Color(1.0, 0.2, 0.2))
 
 func get_repath_anchor_cell() -> Vector2i:
 	if path_index < path.size():
@@ -64,6 +71,7 @@ func get_repath_anchor_cell() -> Vector2i:
 		return path[path.size() - 1]
 
 	return Vector2i.ZERO
+
 
 func get_occupied_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []

@@ -1,14 +1,13 @@
 extends Node2D
 
-var round_active: bool = false
-
-var EnemyScene := preload("res://scenes/enemy/enemy.tscn")
-
 const ENEMIES_PER_ROUND := 5
 
+var round_active: bool = false
+var EnemyScene := preload("res://scenes/enemy/enemy.tscn")
 var enemies_spawned: int = 0
 var enemies_finished: int = 0
 var current_round_path: Array[Vector2i] = []
+
 
 func _ready():
 	var viewport_size: Vector2 = get_viewport_rect().size
@@ -18,9 +17,11 @@ func _ready():
 	$RoundSpawnTimer.timeout.connect(_on_round_spawn_timer_timeout)
 	$Grid.grid_changed.connect(_on_grid_changed)
 
+
 func _process(_delta: float):
 	if Input.is_action_just_pressed("start_round") and not round_active:
 		start_round()
+
 
 func start_round():
 	current_round_path = $Grid.get_grid_path()
@@ -43,6 +44,7 @@ func start_round():
 	if enemies_spawned < ENEMIES_PER_ROUND:
 		$RoundSpawnTimer.start()
 
+
 func end_round():
 	round_active = false
 	$Grid.round_active = false
@@ -52,6 +54,7 @@ func end_round():
 
 	print("Round ended")
 
+
 func _spawn_enemy():
 	current_round_path = $Grid.get_grid_path()
 
@@ -60,6 +63,7 @@ func _spawn_enemy():
 	enemy.tile_size = $Grid.TILE_SIZE
 	enemy.reached_goal.connect(_on_enemy_reached_goal)
 	$Grid.add_child(enemy)
+
 
 func _on_round_spawn_timer_timeout():
 	if not round_active:
@@ -76,12 +80,14 @@ func _on_round_spawn_timer_timeout():
 	if enemies_spawned >= ENEMIES_PER_ROUND:
 		$RoundSpawnTimer.stop()
 
+
 func _on_enemy_reached_goal():
 	enemies_finished += 1
 	print("Enemy reached tower: %d/%d" % [enemies_finished, ENEMIES_PER_ROUND])
 
 	if enemies_finished >= ENEMIES_PER_ROUND:
 		end_round()
+
 
 func _on_grid_changed():
 	var spawn_path: Array[Vector2i] = $Grid.get_grid_path()
