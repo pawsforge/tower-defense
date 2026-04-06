@@ -16,6 +16,7 @@ func _ready():
 	$Grid.position = (viewport_size - grid_size) / 2.0
 
 	$RoundSpawnTimer.timeout.connect(_on_round_spawn_timer_timeout)
+	$Grid.grid_changed.connect(_on_grid_changed)
 
 func _process(_delta: float):
 	if Input.is_action_just_pressed("start_round") and not round_active:
@@ -45,6 +46,7 @@ func start_round():
 func end_round():
 	round_active = false
 	$Grid.building_enabled = true
+	$Grid.debug_path = $Grid.get_grid_path()
 	$Grid.queue_redraw()
 	$RoundSpawnTimer.stop()
 
@@ -78,3 +80,16 @@ func _on_enemy_reached_goal():
 
 	if enemies_finished >= ENEMIES_PER_ROUND:
 		end_round()
+
+func _on_grid_changed():
+	$Grid.debug_path = $Grid.get_grid_path()
+	$Grid.queue_redraw()
+
+	if not round_active:
+		return
+
+	for child in $Grid.get_children():
+		if child.has_method("get_current_cell") and child.has_method("repath"):
+			var current_cell: Vector2i = child.get_current_cell()
+			var new_path: Array[Vector2i] = $Grid.get_grid_path_from(current_cell)
+			child.repath(new_path)

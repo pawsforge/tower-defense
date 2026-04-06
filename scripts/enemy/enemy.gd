@@ -37,6 +37,21 @@ func _process(delta: float):
 
 	queue_redraw()
 
+func get_current_cell() -> Vector2i:
+	return Vector2i(position / tile_size)
+
+func repath(new_path: Array[Vector2i]):
+	if new_path.is_empty():
+		return
+
+	path = new_path
+
+	var first_pos: Vector2 = grid_to_local(path[0])
+	if position.distance_to(first_pos) < 2.0:
+		path_index = 1
+	else:
+		path_index = 0
+
 func grid_to_local(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
