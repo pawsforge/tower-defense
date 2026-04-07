@@ -7,6 +7,10 @@
 [node name="Main" type="Node2D" unique_id=2026843968]
 script = ExtResource("1_k2fmo")
 
+[node name="ManaLabel" type="Label" parent="." unique_id=1474289237]
+offset_right = 40.0
+offset_bottom = 23.0
+
 [node name="Grid" parent="." unique_id=1451979327 instance=ExtResource("1_iuonh")]
 script = ExtResource("2_k2fmo")
 
