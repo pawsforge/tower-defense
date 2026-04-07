@@ -7,9 +7,19 @@ var EnemyScene := preload("res://scenes/enemy/enemy.tscn")
 var enemies_spawned: int = 0
 var enemies_finished: int = 0
 var current_round_path: Array[Vector2i] = []
+# Mana and mana-related variables
+var max_mana: float = 100.0
+var available_mana: float = max_mana
+var mana_pending_refund: float = 0.0
+var mana_regen_rate: float = 5.0
+var barrier_cost: float = 10.0
+
+@onready var mana_label: Label = $ManaLabel
 
 
 func _ready():
+	$Grid.game = self
+
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var grid_size: Vector2 = $Grid.get_grid_pixel_size()
 	$Grid.position = (viewport_size - grid_size) / 2.0
@@ -17,8 +27,25 @@ func _ready():
 	$RoundSpawnTimer.timeout.connect(_on_round_spawn_timer_timeout)
 	$Grid.grid_changed.connect(_on_grid_changed)
 
+	_update_mana_label()
 
-func _process(_delta: float):
+
+func _process(delta: float):
+	if mana_pending_refund > 0.0:
+		var to_refund := minf(mana_regen_rate * delta, mana_pending_refund)
+		available_mana += to_refund
+		mana_pending_refund -= to_refund
+		available_mana = clampf(available_mana, 0.0, max_mana)
+
+		if mana_pending_refund < 0.0001:
+			mana_pending_refund = 0.0
+			available_mana = snappedf(available_mana, 0.001)
+
+		if available_mana >= barrier_cost:
+			$Grid.refresh_hover()
+
+		_update_mana_label()
+
 	if Input.is_action_just_pressed("start_round") and not round_active:
 		start_round()
 
@@ -55,6 +82,23 @@ func end_round():
 	print("Round ended")
 
 
+func can_afford_barrier() -> bool:
+	return available_mana + 0.0001 >= barrier_cost # be tolerant of tiny float errors
+
+
+func spend_barrier_cost() -> bool:
+	if can_afford_barrier():
+		available_mana -= barrier_cost
+		_update_mana_label()
+		return true
+	return false
+
+
+func refund_barrier_cost():
+	mana_pending_refund += barrier_cost
+	_update_mana_label()
+
+
 func _spawn_enemy():
 	current_round_path = $Grid.get_grid_path()
 
@@ -63,6 +107,14 @@ func _spawn_enemy():
 	enemy.tile_size = $Grid.TILE_SIZE
 	enemy.reached_goal.connect(_on_enemy_reached_goal)
 	$Grid.add_child(enemy)
+
+
+func _update_mana_label():
+	mana_label.text = "Mana: %d / %d (+%.1f)" % [
+		int(available_mana),
+		int(max_mana),
+		mana_pending_refund,
+	]
 
 
 func _on_round_spawn_timer_timeout():
