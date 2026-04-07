@@ -43,8 +43,7 @@ func _ready():
 func _process(delta: float):
 	if invalid_flash_time > 0.0:
 		invalid_flash_time = maxf(0.0, invalid_flash_time - delta)
-
-	queue_redraw()
+		queue_redraw()
 
 
 func _input(event):
