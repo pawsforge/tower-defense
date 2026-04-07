@@ -33,6 +33,10 @@ var hover_mode: HoverMode = HoverMode.NONE
 var round_active: bool = false
 var debug_path: Array[Vector2i] = []
 var invalid_flash_time: float = 0.0
+var game: Node # reference to Main
+var pressed_cell: Vector2i = Vector2i(-1, -1)
+var is_pressing: bool = false
+var pressed_button: int = -1
 
 
 func _ready():
@@ -49,29 +53,76 @@ func _process(delta: float):
 func _input(event):
 	if event is InputEventMouseMotion:
 		_update_hover()
+		return
 
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and (
+		event.button_index == MOUSE_BUTTON_LEFT
+		or event.button_index == MOUSE_BUTTON_RIGHT
+	):
 		_update_hover()
 
+		# Press
+		if event.pressed:
+			if is_pressing:
+				return
+
+			if not hovered_in_bounds:
+				return
+
+			is_pressing = true
+			pressed_button = event.button_index
+			pressed_cell = hovered_cell
+			return
+
+		# Release
+		if not is_pressing:
+			return
+
+		if event.button_index != pressed_button:
+			return
+
+		is_pressing = false
+
 		if not hovered_in_bounds:
+			pressed_button = -1
+			pressed_cell = Vector2i(-1, -1)
+			return
+
+		if hovered_cell != pressed_cell:
+			pressed_button = -1
+			pressed_cell = Vector2i(-1, -1)
 			return
 
 		var cell: Vector2i = hovered_cell
 
 		if cell == spawn or cell == goal:
 			_trigger_invalid_feedback()
+			pressed_button = -1
+			pressed_cell = Vector2i(-1, -1)
 			return
 
-		if grid[cell.y][cell.x] == BLOCKED:
-			grid[cell.y][cell.x] = EMPTY
-			_after_grid_changed()
-			return
+		if pressed_button == MOUSE_BUTTON_LEFT:
+			if grid[cell.y][cell.x] == BLOCKED:
+				_trigger_invalid_feedback()
+			elif not game.can_afford_barrier():
+				_trigger_invalid_feedback()
+			elif _can_place(cell):
+				grid[cell.y][cell.x] = BLOCKED
+				game.spend_barrier_cost()
+				_after_grid_changed()
+			else:
+				_trigger_invalid_feedback()
 
-		if _can_place(cell):
-			grid[cell.y][cell.x] = BLOCKED
-			_after_grid_changed()
-		else:
-			_trigger_invalid_feedback()
+		elif pressed_button == MOUSE_BUTTON_RIGHT:
+			if grid[cell.y][cell.x] == BLOCKED:
+				grid[cell.y][cell.x] = EMPTY
+				game.refund_barrier_cost()
+				_after_grid_changed()
+			else:
+				_trigger_invalid_feedback()
+
+		pressed_button = -1
+		pressed_cell = Vector2i(-1, -1)
 
 
 func _draw():
@@ -203,6 +254,10 @@ func grid_to_local(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * TILE_SIZE
 
 
+func refresh_hover():
+	_update_hover()
+
+
 func get_grid_pixel_size() -> Vector2:
 	return Vector2(GRID_WIDTH, GRID_HEIGHT) * TILE_SIZE
 
@@ -290,6 +345,9 @@ func _update_hover():
 
 
 func _can_place(cell: Vector2i) -> bool:
+	if not game.can_afford_barrier():
+		return false
+
 	if not _in_bounds(cell):
 		return false
 
