@@ -1,14 +1,20 @@
 extends Node2D
 
+signal died
 signal reached_goal
+
+@export var max_health: int = 3
 
 var path: Array[Vector2i] = []
 var path_index: int = 0
 var speed: float = 120.0
 var tile_size: int = 64
+var health: int
 
 
 func _ready():
+	health = max_health
+
 	if path.size() > 0:
 		position = grid_to_local(path[0])
 		path_index = 1
@@ -42,6 +48,27 @@ func _process(delta: float):
 
 func _draw():
 	draw_circle(Vector2.ZERO, tile_size * 0.25, Color(1.0, 0.2, 0.2))
+
+	var bar_width := tile_size * 0.5
+	var bar_height := 6.0
+	var bar_x := -bar_width / 2.0
+	var bar_y := -tile_size * 0.45
+
+	var bg_rect := Rect2(bar_x, bar_y, bar_width, bar_height)
+	draw_rect(bg_rect, Color(0.15, 0.15, 0.15))
+
+	var health_fraction := float(health) / float(max_health)
+
+	var inset := 1.0
+	var fill_rect := Rect2(
+		bar_x + inset,
+		bar_y + inset,
+		(bar_width - inset * 2.0) * health_fraction,
+		bar_height - inset * 2.0,
+	)
+	draw_rect(fill_rect, Color(0.2, 0.9, 0.2))
+
+	draw_rect(bg_rect, Color.BLACK, false, 2.0)
 
 
 func get_current_cell() -> Vector2i:
@@ -84,3 +111,22 @@ func get_occupied_cells() -> Array[Vector2i]:
 		cells.append(anchor_cell)
 
 	return cells
+
+
+func take_damage(amount: int):
+	if amount <= 0:
+		return
+
+	var was_alive := health > 0
+	health = clampi(health - amount, 0, max_health)
+	if was_alive and health == 0:
+		die()
+
+
+func die():
+	emit_signal("died")
+	queue_free()
+
+
+func _on_damage_timer_timeout() -> void:
+	take_damage(1)

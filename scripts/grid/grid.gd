@@ -9,11 +9,13 @@ enum HoverMode {
 	REMOVE,
 }
 
+const TT = TowerType.Type
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
 const EMPTY := 0
 const BLOCKED := 1
+const ATTACKER := 2
 const DIRS: Array[Vector2i] = [
 	Vector2i(1, 0),
 	Vector2i(-1, 0),
@@ -33,7 +35,7 @@ var hover_mode: HoverMode = HoverMode.NONE
 var round_active: bool = false
 var debug_path: Array[Vector2i] = []
 var invalid_flash_time: float = 0.0
-var game: Node # reference to Main
+var game: Game # reference to Main
 var pressed_cell: Vector2i = Vector2i(-1, -1)
 var is_pressing: bool = false
 var pressed_button: int = -1
@@ -101,22 +103,32 @@ func _input(event):
 			pressed_cell = Vector2i(-1, -1)
 			return
 
+		var current_tower_type = get_tower_type(cell)
 		if pressed_button == MOUSE_BUTTON_LEFT:
-			if grid[cell.y][cell.x] == BLOCKED:
+			if current_tower_type == TT.ATTACKER:
 				_trigger_invalid_feedback()
-			elif not game.can_afford_barrier():
-				_trigger_invalid_feedback()
-			elif _can_place(cell):
-				grid[cell.y][cell.x] = BLOCKED
-				game.spend_barrier_cost()
+			elif current_tower_type == TT.BARRIER:
+				if _can_place(TT.ATTACKER, cell):
+					_set_tower_type(TT.ATTACKER, cell)
+					game.spend_mana(TT.ATTACKER)
+					_after_grid_changed()
+				else:
+					_trigger_invalid_feedback()
+			elif _can_place(TT.BARRIER, cell):
+				_set_tower_type(TT.BARRIER, cell)
+				game.spend_mana(TT.BARRIER)
 				_after_grid_changed()
 			else:
 				_trigger_invalid_feedback()
 
 		elif pressed_button == MOUSE_BUTTON_RIGHT:
-			if grid[cell.y][cell.x] == BLOCKED:
-				grid[cell.y][cell.x] = EMPTY
-				game.refund_barrier_cost()
+			if current_tower_type == TT.ATTACKER:
+				_set_tower_type(TT.BARRIER, cell)
+				game.queue_mana_refund(TT.ATTACKER)
+				_after_grid_changed()
+			elif current_tower_type == TT.BARRIER:
+				_set_tower_type(TT.EMPTY, cell)
+				game.queue_mana_refund(TT.BARRIER)
 				_after_grid_changed()
 			else:
 				_trigger_invalid_feedback()
@@ -127,7 +139,8 @@ func _input(event):
 
 func _draw():
 	var base_empty := Color(0.15, 0.15, 0.15)
-	var base_blocked := Color(0.35, 0.35, 0.4)
+	var base_barrier := Color(0.35, 0.35, 0.4)
+	var base_attacker := Color(0.6, 0.6, 0.3)
 	var grid_line := Color(0.0, 0.0, 0.0)
 	var invalid_flash := invalid_flash_time > 0.0
 
@@ -137,8 +150,11 @@ func _draw():
 			var rect := Rect2(grid_to_local(cell), Vector2(TILE_SIZE, TILE_SIZE))
 
 			var fill := base_empty
-			if grid[y][x] == BLOCKED:
-				fill = base_blocked
+			var tower = get_tower_type(cell)
+			if tower == TT.ATTACKER:
+				fill = base_attacker
+			elif tower == TT.BARRIER:
+				fill = base_barrier
 
 			if invalid_flash and hovered_in_bounds and cell == hovered_cell:
 				fill = Color(0.8, 0.2, 0.2)
@@ -288,7 +304,7 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 			if visited.has(next_cell):
 				continue
 
-			if grid[next_cell.y][next_cell.x] == BLOCKED:
+			if get_tower_type(next_cell) != TT.EMPTY:
 				continue
 
 			visited[next_cell] = true
@@ -296,6 +312,14 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 			queue.append(next_cell)
 
 	return [] # no path (shouldn't happen if your placement rules are correct)
+
+
+func get_tower_type(cell: Vector2i) -> TT:
+	return grid[cell.y][cell.x]
+
+
+func _set_tower_type(tower_type: TT, cell: Vector2i) -> void:
+	grid[cell.y][cell.x] = tower_type
 
 
 func _after_grid_changed():
@@ -310,11 +334,11 @@ func _init_grid():
 	for y in GRID_HEIGHT:
 		var row: Array[int] = []
 		for x in GRID_WIDTH:
-			row.append(EMPTY)
+			row.append(TT.EMPTY)
 		grid.append(row)
 
 
-func _update_hover():
+func _update_hover() -> void:
 	var local_pos: Vector2 = to_local(get_global_mouse_position())
 	var cell: Vector2i = local_to_grid(local_pos)
 
@@ -331,12 +355,12 @@ func _update_hover():
 		queue_redraw()
 		return
 
-	if grid[cell.y][cell.x] == BLOCKED:
+	if get_tower_type(cell) != TT.EMPTY:
 		hover_mode = HoverMode.REMOVE
 		queue_redraw()
 		return
 
-	if _can_place(cell):
+	if _can_place(TT.BARRIER, cell):
 		hover_mode = HoverMode.PLACE_VALID
 	else:
 		hover_mode = HoverMode.PLACE_INVALID
@@ -344,8 +368,8 @@ func _update_hover():
 	queue_redraw()
 
 
-func _can_place(cell: Vector2i) -> bool:
-	if not game.can_afford_barrier():
+func _can_place(tower_type: TT, cell: Vector2i) -> bool:
+	if not game.can_afford(tower_type):
 		return false
 
 	if not _in_bounds(cell):
@@ -354,16 +378,16 @@ func _can_place(cell: Vector2i) -> bool:
 	if cell == spawn or cell == goal:
 		return false
 
-	if grid[cell.y][cell.x] == BLOCKED:
+	var current_tower_type = get_tower_type(cell)
+
+	if current_tower_type == TT.ATTACKER:
 		return false
 
 	if _is_cell_occupied_by_enemy(cell):
 		return false
 
-	grid[cell.y][cell.x] = BLOCKED
-
+	_set_tower_type(TT.BARRIER, cell)
 	var valid := true
-
 	if not _path_exists_from(spawn):
 		valid = false
 	else:
@@ -373,7 +397,7 @@ func _can_place(cell: Vector2i) -> bool:
 				valid = false
 				break
 
-	grid[cell.y][cell.x] = EMPTY
+	_set_tower_type(current_tower_type, cell)
 	return valid
 
 

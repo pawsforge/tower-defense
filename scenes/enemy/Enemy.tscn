@@ -4,3 +4,7 @@
 
 [node name="Enemy" type="Node2D" unique_id=1437394562]
 script = ExtResource("1_sjakr")
+
+[node name="DamageTimer" type="Timer" parent="." unique_id=1530367381]
+
+[connection signal="timeout" from="DamageTimer" to="." method="_on_damage_timer_timeout"]
