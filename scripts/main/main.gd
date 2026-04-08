@@ -1,5 +1,7 @@
+class_name Game
 extends Node2D
 
+const TT = TowerType.Type
 const ENEMIES_PER_ROUND := 5
 
 var round_active: bool = false
@@ -12,7 +14,11 @@ var max_mana: float = 100.0
 var available_mana: float = max_mana
 var mana_pending_refund: float = 0.0
 var mana_regen_rate: float = 5.0
-var barrier_cost: float = 10.0
+var build_or_upgrade_cost: Dictionary[TT, int] = {
+	TT.EMPTY: 0,
+	TT.BARRIER: 10,
+	TT.ATTACKER: 20,
+}
 
 @onready var mana_label: Label = $ManaLabel
 
@@ -38,10 +44,11 @@ func _process(delta: float):
 		available_mana = clampf(available_mana, 0.0, max_mana)
 
 		if mana_pending_refund < 0.0001:
+			available_mana += mana_pending_refund
 			mana_pending_refund = 0.0
 			available_mana = snappedf(available_mana, 0.001)
 
-		if available_mana >= barrier_cost:
+		if available_mana >= build_or_upgrade_cost[TT.BARRIER]:
 			$Grid.refresh_hover()
 
 		_update_mana_label()
@@ -82,20 +89,20 @@ func end_round():
 	print("Round ended")
 
 
-func can_afford_barrier() -> bool:
-	return available_mana + 0.0001 >= barrier_cost # be tolerant of tiny float errors
+func can_afford(tower_type: TT) -> bool:
+	return available_mana + 0.0001 >= build_or_upgrade_cost[tower_type] # be tolerant of tiny float errors
 
 
-func spend_barrier_cost() -> bool:
-	if can_afford_barrier():
-		available_mana -= barrier_cost
+func spend_mana(tower_type: TT) -> bool:
+	if can_afford(tower_type):
+		available_mana -= build_or_upgrade_cost[tower_type]
 		_update_mana_label()
 		return true
 	return false
 
 
-func refund_barrier_cost():
-	mana_pending_refund += barrier_cost
+func queue_mana_refund(tower_type: TT):
+	mana_pending_refund += build_or_upgrade_cost[tower_type]
 	_update_mana_label()
 
 
