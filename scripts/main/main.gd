@@ -105,6 +105,7 @@ func _spawn_enemy():
 	var enemy = EnemyScene.instantiate()
 	enemy.path = current_round_path
 	enemy.tile_size = $Grid.TILE_SIZE
+	enemy.died.connect(_on_enemy_died)
 	enemy.reached_goal.connect(_on_enemy_reached_goal)
 	$Grid.add_child(enemy)
 
@@ -131,6 +132,14 @@ func _on_round_spawn_timer_timeout():
 
 	if enemies_spawned >= ENEMIES_PER_ROUND:
 		$RoundSpawnTimer.stop()
+
+
+func _on_enemy_died():
+	enemies_finished += 1
+	print("Enemy died: %d/%d" % [enemies_finished, ENEMIES_PER_ROUND])
+
+	if enemies_finished >= ENEMIES_PER_ROUND:
+		end_round()
 
 
 func _on_enemy_reached_goal():
