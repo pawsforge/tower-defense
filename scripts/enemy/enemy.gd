@@ -126,3 +126,7 @@ func take_damage(amount: int):
 func die():
 	emit_signal("died")
 	queue_free()
+
+
+func _on_damage_timer_timeout() -> void:
+	take_damage(1)
