@@ -10,7 +10,6 @@ enum HoverMode {
 	REMOVE,
 }
 
-const TT = TowerType.Type
 const TILE_SIZE := 64
 const GRID_WIDTH := 16
 const GRID_HEIGHT := 10
@@ -25,7 +24,6 @@ const DIRS: Array[Vector2i] = [
 ]
 const INVALID_FLASH_DURATION := 0.18
 
-var grid: Array = []
 @warning_ignore("integer_division")
 var spawn: Vector2i = Vector2i(0, GRID_HEIGHT / 2)
 @warning_ignore("integer_division")
@@ -49,7 +47,6 @@ var towers_by_cell: Dictionary[Vector2i, Tower] = { }
 
 
 func _ready():
-	_init_grid()
 	debug_path = get_grid_path()
 	overlay.grid = self
 
@@ -57,7 +54,8 @@ func _ready():
 func _process(delta: float):
 	if invalid_flash_time > 0.0:
 		invalid_flash_time = maxf(0.0, invalid_flash_time - delta)
-		overlay.queue_redraw()
+		if invalid_flash_time == 0.0:
+			overlay.queue_redraw()
 
 
 func _input(event):
@@ -71,78 +69,10 @@ func _input(event):
 	):
 		_update_hover()
 
-		# Press
 		if event.pressed:
-			if is_pressing:
-				return
-
-			if not hovered_in_bounds:
-				return
-
-			is_pressing = true
-			pressed_button = event.button_index
-			pressed_cell = hovered_cell
-			return
-
-		# Release
-		if not is_pressing:
-			return
-
-		if event.button_index != pressed_button:
-			return
-
-		is_pressing = false
-
-		if not hovered_in_bounds:
-			pressed_button = -1
-			pressed_cell = Vector2i(-1, -1)
-			return
-
-		if hovered_cell != pressed_cell:
-			pressed_button = -1
-			pressed_cell = Vector2i(-1, -1)
-			return
-
-		var cell: Vector2i = hovered_cell
-
-		if cell == spawn or cell == goal:
-			_trigger_invalid_feedback()
-			pressed_button = -1
-			pressed_cell = Vector2i(-1, -1)
-			return
-
-		var current_tower_type = get_tower_type(cell)
-		if pressed_button == MOUSE_BUTTON_LEFT:
-			if current_tower_type == TT.ATTACKER:
-				_trigger_invalid_feedback()
-			elif current_tower_type == TT.BARRIER:
-				if _can_place(attacker_definition, cell):
-					_set_tower_type(TT.ATTACKER, cell)
-					game.spend_mana(attacker_definition.mana_cost)
-					_after_grid_changed()
-				else:
-					_trigger_invalid_feedback()
-			elif _can_place(barrier_definition, cell):
-				_set_tower_type(TT.BARRIER, cell)
-				game.spend_mana(barrier_definition.mana_cost)
-				_after_grid_changed()
-			else:
-				_trigger_invalid_feedback()
-
-		elif pressed_button == MOUSE_BUTTON_RIGHT:
-			if current_tower_type == TT.ATTACKER:
-				_set_tower_type(TT.BARRIER, cell)
-				game.queue_mana_refund(attacker_definition.mana_cost)
-				_after_grid_changed()
-			elif current_tower_type == TT.BARRIER:
-				_set_tower_type(TT.EMPTY, cell)
-				game.queue_mana_refund(barrier_definition.mana_cost)
-				_after_grid_changed()
-			else:
-				_trigger_invalid_feedback()
-
-		pressed_button = -1
-		pressed_cell = Vector2i(-1, -1)
+			_handle_mouse_press(event)
+		else:
+			_handle_mouse_release(event)
 
 
 func _draw():
@@ -164,19 +94,15 @@ func _draw():
 
 	# Spawn as portal
 	var spawn_rect := Rect2(grid_to_local(spawn), Vector2(TILE_SIZE, TILE_SIZE))
-	var t := Time.get_ticks_msec() / 1000.0
-	var pulse := (sin(t * 2.5) + 1.0) * 0.5
-
 	var outer_color := Color(0.25, 0.05, 0.4)
 	var mid_color := Color(0.5, 0.15, 0.8)
 	var inner_color := Color(0.75, 0.35, 1.0)
 	var core_color := Color(1.0, 0.7, 1.0)
-
 	draw_rect(spawn_rect, outer_color)
 	draw_rect(spawn_rect.grow(-6), mid_color)
-	draw_rect(spawn_rect.grow(-10 - pulse * 2.0), inner_color)
-	draw_rect(spawn_rect.grow(-16 - pulse * 3.0), core_color)
-	draw_rect(spawn_rect, Color(0.6, 0.2, 0.9), false, 2.0)
+	draw_rect(spawn_rect.grow(-10), inner_color)
+	draw_rect(spawn_rect.grow(-16), core_color)
+	draw_rect(spawn_rect.grow(-1), Color(0.6, 0.2, 0.9), false, 2.0)
 
 	# Goal as wizard tower
 	var goal_rect := Rect2(grid_to_local(goal), Vector2(TILE_SIZE, TILE_SIZE))
@@ -236,7 +162,7 @@ func _draw():
 	draw_rect(crystal_rect, crystal_color)
 
 	# outline
-	draw_rect(goal_rect, Color(0.1, 0.1, 0.15), false, 2.0)
+	draw_rect(goal_rect.grow(-1), Color(0.1, 0.1, 0.15), false, 2.0)
 
 
 func local_to_grid(pos: Vector2) -> Vector2i:
@@ -247,6 +173,7 @@ func grid_to_local(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * TILE_SIZE
 
 
+# TODO this is being called by Main because it's an easy way to update the grid overlay
 func refresh_hover():
 	_update_hover()
 
@@ -281,7 +208,7 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 			if visited.has(next_cell):
 				continue
 
-			if get_tower_type(next_cell) != TT.EMPTY:
+			if get_tower_definition(next_cell) != null:
 				continue
 
 			visited[next_cell] = true
@@ -291,26 +218,98 @@ func get_grid_path_from(start_cell: Vector2i) -> Array[Vector2i]:
 	return [] # no path (shouldn't happen if your placement rules are correct)
 
 
-func get_tower_type(cell: Vector2i) -> TT:
-	return grid[cell.y][cell.x]
+func get_tower_definition(cell: Vector2i) -> TowerDefinition:
+	var tower: Tower = towers_by_cell.get(cell)
+	if tower == null:
+		return null
+	return tower.definition
 
 
-func _set_tower_type(tower_type: TT, cell: Vector2i) -> void:
-	grid[cell.y][cell.x] = tower_type
+func _handle_mouse_press(event: InputEventMouseButton) -> void:
+	if is_pressing:
+		return
 
+	if not hovered_in_bounds:
+		return
+
+	is_pressing = true
+	pressed_button = event.button_index
+	pressed_cell = hovered_cell
+
+
+func _handle_mouse_release(event: InputEventMouseButton) -> void:
+	if not is_pressing:
+		return
+
+	if event.button_index != pressed_button:
+		return
+
+	if not hovered_in_bounds or hovered_cell != pressed_cell:
+		_clear_press_state()
+		return
+
+	var cell: Vector2i = hovered_cell
+	_clear_press_state()
+
+	if cell == spawn or cell == goal:
+		_trigger_invalid_feedback()
+		return
+
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		_handle_left_click(cell)
+	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		_handle_right_click(cell)
+
+
+func _clear_press_state() -> void:
+	is_pressing = false
+	pressed_button = -1
+	pressed_cell = Vector2i(-1, -1)
+
+
+func _handle_left_click(cell: Vector2i) -> void:
+	var current_tower_definition := get_tower_definition(cell)
+
+	if current_tower_definition == attacker_definition:
+		_trigger_invalid_feedback()
+	elif current_tower_definition == barrier_definition:
+		if _can_place(attacker_definition, cell):
+			_set_tower_definition(attacker_definition, cell)
+			game.spend_mana(attacker_definition.mana_cost)
+			_after_grid_changed()
+		else:
+			_trigger_invalid_feedback()
+	elif _can_place(barrier_definition, cell):
+		_set_tower_definition(barrier_definition, cell)
+		game.spend_mana(barrier_definition.mana_cost)
+		_after_grid_changed()
+	else:
+		_trigger_invalid_feedback()
+
+
+func _handle_right_click(cell: Vector2i) -> void:
+	var current_tower_definition := get_tower_definition(cell)
+
+	if current_tower_definition == attacker_definition:
+		_set_tower_definition(barrier_definition, cell)
+		game.queue_mana_refund(attacker_definition.mana_cost)
+		_after_grid_changed()
+	elif current_tower_definition == barrier_definition:
+		_set_tower_definition(null, cell)
+		game.queue_mana_refund(barrier_definition.mana_cost)
+		_after_grid_changed()
+	else:
+		_trigger_invalid_feedback()
+
+
+func _set_tower_definition(definition: TowerDefinition, cell: Vector2i) -> void:
 	var existing_tower: Tower = towers_by_cell.get(cell)
 
-	if tower_type == TT.EMPTY:
+	if definition == null:
 		if existing_tower != null:
 			towers_by_cell.erase(cell)
 			existing_tower.queue_free()
 		return
-
-	var definition: TowerDefinition = null
-	if tower_type == TT.BARRIER:
-		definition = barrier_definition
-	elif tower_type == TT.ATTACKER:
-		definition = attacker_definition
 
 	if existing_tower == null:
 		var tower: Tower = tower_scene.instantiate()
@@ -327,15 +326,6 @@ func _after_grid_changed():
 	debug_path = get_grid_path()
 	overlay.queue_redraw()
 	emit_signal("grid_changed")
-
-
-func _init_grid():
-	grid.clear()
-	for y in GRID_HEIGHT:
-		var row: Array[int] = []
-		for x in GRID_WIDTH:
-			row.append(TT.EMPTY)
-		grid.append(row)
 
 
 func _update_hover() -> void:
@@ -355,7 +345,7 @@ func _update_hover() -> void:
 		overlay.queue_redraw()
 		return
 
-	if get_tower_type(cell) != TT.EMPTY:
+	if get_tower_definition(cell) != null:
 		hover_mode = HoverMode.REMOVE
 		overlay.queue_redraw()
 		return
@@ -378,15 +368,15 @@ func _can_place(definition: TowerDefinition, cell: Vector2i) -> bool:
 	if cell == spawn or cell == goal:
 		return false
 
-	var current_tower_type = get_tower_type(cell)
+	var current_tower_definition = get_tower_definition(cell)
 
-	if current_tower_type == TT.ATTACKER:
+	if current_tower_definition == attacker_definition:
 		return false
 
 	if _is_cell_occupied_by_enemy(cell):
 		return false
 
-	_set_tower_type(TT.BARRIER, cell)
+	_set_tower_definition(barrier_definition, cell)
 	var valid := true
 	if not _path_exists_from(spawn):
 		valid = false
@@ -397,7 +387,7 @@ func _can_place(definition: TowerDefinition, cell: Vector2i) -> bool:
 				valid = false
 				break
 
-	_set_tower_type(current_tower_type, cell)
+	_set_tower_definition(current_tower_definition, cell)
 	return valid
 
 

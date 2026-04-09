@@ -16,23 +16,22 @@ func _ready():
 	health = max_health
 
 	if path.size() > 0:
-		position = grid_to_local(path[0])
+		position = cell_to_world_center(path[0])
 		path_index = 1
 
 
-func _process(delta: float):
+func _physics_process(delta: float) -> void:
 	if path_index >= path.size():
 		emit_signal("reached_goal")
 		queue_free()
 		return
 
 	var target_cell: Vector2i = path[path_index]
-	var target_pos: Vector2 = grid_to_local(target_cell)
+	var target_pos: Vector2 = cell_to_world_center(target_cell)
 
-	var direction: Vector2 = target_pos - position
-	var distance: float = direction.length()
+	position = position.move_toward(target_pos, speed * delta)
 
-	if distance < 2.0:
+	if position.is_equal_approx(target_pos):
 		position = target_pos
 		path_index += 1
 
@@ -40,8 +39,6 @@ func _process(delta: float):
 			emit_signal("reached_goal")
 			queue_free()
 			return
-	else:
-		position += direction.normalized() * speed * delta
 
 	queue_redraw()
 
@@ -86,7 +83,7 @@ func repath(new_path: Array[Vector2i]):
 	path_index = 0
 
 
-func grid_to_local(cell: Vector2i) -> Vector2:
+func cell_to_world_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
 
