@@ -1,11 +1,14 @@
 [gd_scene format=3 uid="uid://bal0x0y1chlag"]
 
-[ext_resource type="Script" path="res://scripts/grid/grid_overlay.gd" id="1_x0e5n"]
+[ext_resource type="Script" uid="uid://datuaotng1iim" path="res://scripts/grid/grid_overlay.gd" id="1_x0e5n"]
 [ext_resource type="Script" uid="uid://wcsf0xfbojji" path="res://scripts/grid/grid.gd" id="1_yuyu4"]
 
 [node name="Grid" type="Node2D" unique_id=1451979327]
 script = ExtResource("1_yuyu4")
 
 [node name="GridOverlay" type="Node2D" parent="." unique_id=2129538945]
-z_index = 2
+z_index = 4
 script = ExtResource("1_x0e5n")
+
+[node name="MagicOverlay" type="Node2D" parent="." unique_id=1427443064]
+z_index = 3
