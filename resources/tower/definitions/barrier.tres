@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="TowerDefinition" format=3 uid="uid://bqm5ojpq6igwa"]
+
+[ext_resource type="Script" uid="uid://c71pon6bp0qg3" path="res://scripts/tower/tower_definition.gd" id="1_11jbb"]
+
+[resource]
+script = ExtResource("1_11jbb")
+role = 1
+mana_cost = 10
+metadata/_custom_type_script = "uid://c71pon6bp0qg3"

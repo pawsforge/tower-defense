@@ -1,3 +1,4 @@
+class_name Grid
 extends Node2D
 
 signal grid_changed
@@ -39,17 +40,24 @@ var game: Game # reference to Main
 var pressed_cell: Vector2i = Vector2i(-1, -1)
 var is_pressing: bool = false
 var pressed_button: int = -1
+var tower_scene := preload("res://scenes/tower/tower.tscn")
+var barrier_definition := preload("res://resources/tower/definitions/barrier.tres")
+var attacker_definition := preload("res://resources/tower/definitions/basic_attacker.tres")
+var towers_by_cell: Dictionary[Vector2i, Tower] = { }
+
+@onready var overlay: GridOverlay = $GridOverlay
 
 
 func _ready():
 	_init_grid()
 	debug_path = get_grid_path()
+	overlay.grid = self
 
 
 func _process(delta: float):
 	if invalid_flash_time > 0.0:
 		invalid_flash_time = maxf(0.0, invalid_flash_time - delta)
-		queue_redraw()
+		overlay.queue_redraw()
 
 
 func _input(event):
@@ -108,15 +116,15 @@ func _input(event):
 			if current_tower_type == TT.ATTACKER:
 				_trigger_invalid_feedback()
 			elif current_tower_type == TT.BARRIER:
-				if _can_place(TT.ATTACKER, cell):
+				if _can_place(attacker_definition, cell):
 					_set_tower_type(TT.ATTACKER, cell)
-					game.spend_mana(TT.ATTACKER)
+					game.spend_mana(attacker_definition.mana_cost)
 					_after_grid_changed()
 				else:
 					_trigger_invalid_feedback()
-			elif _can_place(TT.BARRIER, cell):
+			elif _can_place(barrier_definition, cell):
 				_set_tower_type(TT.BARRIER, cell)
-				game.spend_mana(TT.BARRIER)
+				game.spend_mana(barrier_definition.mana_cost)
 				_after_grid_changed()
 			else:
 				_trigger_invalid_feedback()
@@ -124,11 +132,11 @@ func _input(event):
 		elif pressed_button == MOUSE_BUTTON_RIGHT:
 			if current_tower_type == TT.ATTACKER:
 				_set_tower_type(TT.BARRIER, cell)
-				game.queue_mana_refund(TT.ATTACKER)
+				game.queue_mana_refund(attacker_definition.mana_cost)
 				_after_grid_changed()
 			elif current_tower_type == TT.BARRIER:
 				_set_tower_type(TT.EMPTY, cell)
-				game.queue_mana_refund(TT.BARRIER)
+				game.queue_mana_refund(barrier_definition.mana_cost)
 				_after_grid_changed()
 			else:
 				_trigger_invalid_feedback()
@@ -139,8 +147,6 @@ func _input(event):
 
 func _draw():
 	var base_empty := Color(0.15, 0.15, 0.15)
-	var base_barrier := Color(0.35, 0.35, 0.4)
-	var base_attacker := Color(0.6, 0.6, 0.3)
 	var grid_line := Color(0.0, 0.0, 0.0)
 	var invalid_flash := invalid_flash_time > 0.0
 
@@ -150,12 +156,6 @@ func _draw():
 			var rect := Rect2(grid_to_local(cell), Vector2(TILE_SIZE, TILE_SIZE))
 
 			var fill := base_empty
-			var tower = get_tower_type(cell)
-			if tower == TT.ATTACKER:
-				fill = base_attacker
-			elif tower == TT.BARRIER:
-				fill = base_barrier
-
 			if invalid_flash and hovered_in_bounds and cell == hovered_cell:
 				fill = Color(0.8, 0.2, 0.2)
 
@@ -238,29 +238,6 @@ func _draw():
 	# outline
 	draw_rect(goal_rect, Color(0.1, 0.1, 0.15), false, 2.0)
 
-	# Debug path only during build phase
-	if not round_active:
-		for cell in debug_path:
-			var center := grid_to_local(cell) + Vector2(TILE_SIZE, TILE_SIZE) * 0.5
-			draw_circle(center, 6.0, Color(1.0, 1.0, 0.2))
-
-	# Hover overlay
-	if hovered_in_bounds:
-		var hover_rect := Rect2(grid_to_local(hovered_cell), Vector2(TILE_SIZE, TILE_SIZE))
-
-		match hover_mode:
-			HoverMode.REMOVE:
-				draw_rect(hover_rect, Color(1.0, 0.85, 0.2, 0.22))
-				draw_rect(hover_rect, Color(1.0, 0.85, 0.2), false, 3.0)
-			HoverMode.PLACE_VALID:
-				draw_rect(hover_rect, Color(0.3, 1.0, 0.3, 0.2))
-				draw_rect(hover_rect, Color(0.3, 1.0, 0.3), false, 3.0)
-			HoverMode.PLACE_INVALID:
-				draw_rect(hover_rect, Color(1.0, 0.3, 0.3, 0.25))
-				draw_rect(hover_rect, Color(1.0, 0.3, 0.3), false, 3.0)
-			HoverMode.NONE:
-				pass
-
 
 func local_to_grid(pos: Vector2) -> Vector2i:
 	return Vector2i(pos / TILE_SIZE)
@@ -321,11 +298,34 @@ func get_tower_type(cell: Vector2i) -> TT:
 func _set_tower_type(tower_type: TT, cell: Vector2i) -> void:
 	grid[cell.y][cell.x] = tower_type
 
+	var existing_tower: Tower = towers_by_cell.get(cell)
+
+	if tower_type == TT.EMPTY:
+		if existing_tower != null:
+			towers_by_cell.erase(cell)
+			existing_tower.queue_free()
+		return
+
+	var definition: TowerDefinition = null
+	if tower_type == TT.BARRIER:
+		definition = barrier_definition
+	elif tower_type == TT.ATTACKER:
+		definition = attacker_definition
+
+	if existing_tower == null:
+		var tower: Tower = tower_scene.instantiate()
+		add_child(tower)
+		tower.position = grid_to_local(cell)
+		tower.setup(cell, definition)
+		towers_by_cell[cell] = tower
+	else:
+		existing_tower.set_definition(definition)
+
 
 func _after_grid_changed():
 	_update_hover()
 	debug_path = get_grid_path()
-	queue_redraw()
+	overlay.queue_redraw()
 	emit_signal("grid_changed")
 
 
@@ -347,29 +347,29 @@ func _update_hover() -> void:
 	hover_mode = HoverMode.NONE
 
 	if not hovered_in_bounds:
-		queue_redraw()
+		overlay.queue_redraw()
 		return
 
 	if cell == spawn or cell == goal:
 		hover_mode = HoverMode.PLACE_INVALID
-		queue_redraw()
+		overlay.queue_redraw()
 		return
 
 	if get_tower_type(cell) != TT.EMPTY:
 		hover_mode = HoverMode.REMOVE
-		queue_redraw()
+		overlay.queue_redraw()
 		return
 
-	if _can_place(TT.BARRIER, cell):
+	if _can_place(barrier_definition, cell):
 		hover_mode = HoverMode.PLACE_VALID
 	else:
 		hover_mode = HoverMode.PLACE_INVALID
 
-	queue_redraw()
+	overlay.queue_redraw()
 
 
-func _can_place(tower_type: TT, cell: Vector2i) -> bool:
-	if not game.can_afford(tower_type):
+func _can_place(definition: TowerDefinition, cell: Vector2i) -> bool:
+	if not game.can_afford_mana_cost(definition.mana_cost):
 		return false
 
 	if not _in_bounds(cell):
@@ -421,7 +421,7 @@ func _get_active_enemies() -> Array:
 
 func _trigger_invalid_feedback():
 	invalid_flash_time = INVALID_FLASH_DURATION
-	queue_redraw()
+	overlay.queue_redraw()
 
 
 func _path_exists_from(start_cell: Vector2i) -> bool:

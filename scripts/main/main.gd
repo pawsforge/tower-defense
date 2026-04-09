@@ -89,20 +89,20 @@ func end_round():
 	print("Round ended")
 
 
-func can_afford(tower_type: TT) -> bool:
-	return available_mana + 0.0001 >= build_or_upgrade_cost[tower_type] # be tolerant of tiny float errors
+func can_afford_mana_cost(amount: int) -> bool:
+	return available_mana + 0.0001 >= amount # be tolerant of tiny float errors
 
 
-func spend_mana(tower_type: TT) -> bool:
-	if can_afford(tower_type):
-		available_mana -= build_or_upgrade_cost[tower_type]
+func spend_mana(amount: int) -> bool:
+	if can_afford_mana_cost(amount):
+		available_mana -= amount
 		_update_mana_label()
 		return true
 	return false
 
 
-func queue_mana_refund(tower_type: TT):
-	mana_pending_refund += build_or_upgrade_cost[tower_type]
+func queue_mana_refund(amount: int):
+	mana_pending_refund += amount
 	_update_mana_label()
 
 
