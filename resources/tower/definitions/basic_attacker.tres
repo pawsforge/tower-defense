@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="TowerDefinition" format=3 uid="uid://bgie16ry8e61p"]
+
+[ext_resource type="Script" uid="uid://c71pon6bp0qg3" path="res://scripts/tower/tower_definition.gd" id="1_lgekx"]
+
+[resource]
+script = ExtResource("1_lgekx")
+mana_cost = 20
+tower_range = 2.0
+attack_damage = 1
+attack_cooldown = 1.0
+metadata/_custom_type_script = "uid://c71pon6bp0qg3"

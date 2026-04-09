@@ -3,6 +3,8 @@ extends Node2D
 signal died
 signal reached_goal
 
+const HIT_FLASH_DURATION := 0.1
+
 @export var max_health: int = 3
 
 var path: Array[Vector2i] = []
@@ -10,29 +12,33 @@ var path_index: int = 0
 var speed: float = 120.0
 var tile_size: int = 64
 var health: int
+var hit_flash_time: float = 0.0
 
 
 func _ready():
 	health = max_health
 
 	if path.size() > 0:
-		position = grid_to_local(path[0])
+		position = cell_to_world_center(path[0])
 		path_index = 1
 
 
-func _process(delta: float):
+func _physics_process(delta: float) -> void:
+	if hit_flash_time > 0.0:
+		hit_flash_time = maxf(0.0, hit_flash_time - delta)
+		queue_redraw()
+
 	if path_index >= path.size():
 		emit_signal("reached_goal")
 		queue_free()
 		return
 
 	var target_cell: Vector2i = path[path_index]
-	var target_pos: Vector2 = grid_to_local(target_cell)
+	var target_pos: Vector2 = cell_to_world_center(target_cell)
 
-	var direction: Vector2 = target_pos - position
-	var distance: float = direction.length()
+	position = position.move_toward(target_pos, speed * delta)
 
-	if distance < 2.0:
+	if position.is_equal_approx(target_pos):
 		position = target_pos
 		path_index += 1
 
@@ -40,14 +46,16 @@ func _process(delta: float):
 			emit_signal("reached_goal")
 			queue_free()
 			return
-	else:
-		position += direction.normalized() * speed * delta
 
 	queue_redraw()
 
 
 func _draw():
-	draw_circle(Vector2.ZERO, tile_size * 0.25, Color(1.0, 0.2, 0.2))
+	var body_color := Color(1.0, 0.2, 0.2)
+	if hit_flash_time > 0.0:
+		body_color = Color(1.0, 0.9, 0.9)
+
+	draw_circle(Vector2.ZERO, tile_size * 0.25, body_color)
 
 	var bar_width := tile_size * 0.5
 	var bar_height := 6.0
@@ -86,7 +94,7 @@ func repath(new_path: Array[Vector2i]):
 	path_index = 0
 
 
-func grid_to_local(cell: Vector2i) -> Vector2:
+func cell_to_world_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x, cell.y) * tile_size + Vector2(tile_size, tile_size) * 0.5
 
 
@@ -116,6 +124,9 @@ func get_occupied_cells() -> Array[Vector2i]:
 func take_damage(amount: int):
 	if amount <= 0:
 		return
+
+	hit_flash_time = HIT_FLASH_DURATION
+	queue_redraw()
 
 	var was_alive := health > 0
 	health = clampi(health - amount, 0, max_health)

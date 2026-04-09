@@ -2,7 +2,6 @@
 
 [ext_resource type="PackedScene" uid="uid://bal0x0y1chlag" path="res://scenes/grid/grid.tscn" id="1_iuonh"]
 [ext_resource type="Script" uid="uid://b5h6vipp1u8k" path="res://scripts/main/main.gd" id="1_k2fmo"]
-[ext_resource type="Script" uid="uid://wcsf0xfbojji" path="res://scripts/grid/grid.gd" id="2_k2fmo"]
 
 [node name="Main" type="Node2D" unique_id=2026843968]
 script = ExtResource("1_k2fmo")
@@ -12,7 +11,6 @@ offset_right = 40.0
 offset_bottom = 23.0
 
 [node name="Grid" parent="." unique_id=1451979327 instance=ExtResource("1_iuonh")]
-script = ExtResource("2_k2fmo")
 
 [node name="RoundSpawnTimer" type="Timer" parent="." unique_id=648178490]
 wait_time = 3.0

@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://bunwa67kyguok"]
+
+[ext_resource type="Script" uid="uid://cpf1g8m0xsx2b" path="res://scripts/tower/tower.gd" id="1_mg2hd"]
+
+[node name="Tower" type="Node2D" unique_id=166205068]
+z_index = 1
+script = ExtResource("1_mg2hd")
