@@ -2,7 +2,7 @@ class_name Tower
 extends Node2D
 
 const TILE_SIZE := 64
-const BEAM_LIFETIME := 0.5
+const BEAM_LIFETIME := 0.18
 
 var grid_position: Vector2i
 var definition: TowerDefinition
