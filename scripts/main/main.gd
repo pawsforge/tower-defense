@@ -13,6 +13,8 @@ var max_mana: float = 100.0
 var available_mana: float = max_mana
 var mana_pending_refund: float = 0.0
 var mana_regen_rate: float = 5.0
+var basic_enemy_definition := preload("res://resources/enemy/definitions/basic_enemy.tres")
+var fast_enemy_definition := preload("res://resources/enemy/definitions/fast_enemy.tres")
 
 @onready var mana_label: Label = $ManaLabel
 
@@ -66,7 +68,7 @@ func start_round():
 
 	print("Round started")
 
-	_spawn_enemy()
+	_spawn_enemy(_get_enemy_definition_for_spawn(enemies_spawned))
 	enemies_spawned += 1
 
 	if enemies_spawned < ENEMIES_PER_ROUND:
@@ -100,11 +102,11 @@ func queue_mana_refund(amount: int):
 	_update_mana_label()
 
 
-func _spawn_enemy():
+func _spawn_enemy(definition: EnemyDefinition) -> void:
 	current_round_path = $Grid.get_grid_path()
 
-	var enemy = EnemyScene.instantiate()
-	enemy.path = current_round_path
+	var enemy: Enemy = EnemyScene.instantiate()
+	enemy.setup(definition, current_round_path)
 	enemy.tile_size = $Grid.TILE_SIZE
 	enemy.died.connect(_on_enemy_died)
 	enemy.reached_goal.connect(_on_enemy_reached_goal)
@@ -128,7 +130,7 @@ func _on_round_spawn_timer_timeout():
 		$RoundSpawnTimer.stop()
 		return
 
-	_spawn_enemy()
+	_spawn_enemy(_get_enemy_definition_for_spawn(enemies_spawned))
 	enemies_spawned += 1
 
 	if enemies_spawned >= ENEMIES_PER_ROUND:
@@ -162,7 +164,14 @@ func _on_grid_changed():
 		return
 
 	for child in $Grid.get_children():
-		if child.has_method("get_repath_anchor_cell") and child.has_method("repath"):
+		if child is Enemy:
+			var enemy: Enemy = child
 			var anchor_cell: Vector2i = child.get_repath_anchor_cell()
 			var new_path: Array[Vector2i] = $Grid.get_grid_path_from(anchor_cell)
 			child.repath(new_path)
+
+
+func _get_enemy_definition_for_spawn(spawn_index: int) -> EnemyDefinition:
+	if spawn_index % 2 == 1:
+		return fast_enemy_definition
+	return basic_enemy_definition
