@@ -15,6 +15,7 @@ var mana_pending_refund: float = 0.0
 var mana_regen_rate: float = 5.0
 var basic_enemy_definition := preload("res://resources/enemy/definitions/basic_enemy.tres")
 var fast_enemy_definition := preload("res://resources/enemy/definitions/fast_enemy.tres")
+var heavy_enemy_definition := preload("res://resources/enemy/definitions/heavy_enemy.tres")
 
 @onready var mana_label: Label = $ManaLabel
 
@@ -174,4 +175,6 @@ func _on_grid_changed():
 func _get_enemy_definition_for_spawn(spawn_index: int) -> EnemyDefinition:
 	if spawn_index % 2 == 1:
 		return fast_enemy_definition
+	if spawn_index % 3 == 1:
+		return heavy_enemy_definition
 	return basic_enemy_definition

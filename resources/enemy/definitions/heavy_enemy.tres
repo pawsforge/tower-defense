@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://c70126bpyj1k2"]
+
+[ext_resource type="Script" uid="uid://clgpfmk70np2u" path="res://scripts/enemy/enemy_definition.gd" id="1_x2fvp"]
+
+[resource]
+script = ExtResource("1_x2fvp")
+max_health = 10
+move_speed = 70.0
+color = Color(0.49803922, 0.32941177, 0.49803922, 1)
+metadata/_custom_type_script = "uid://clgpfmk70np2u"
