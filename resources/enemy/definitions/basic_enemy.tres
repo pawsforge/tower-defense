@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="EnemyDefinition" format=3 uid="uid://d16g5bc4pfwll"]
+
+[ext_resource type="Script" uid="uid://clgpfmk70np2u" path="res://scripts/enemy/enemy_definition.gd" id="1_m2bwu"]
+
+[resource]
+script = ExtResource("1_m2bwu")
+max_health = 3
+metadata/_custom_type_script = "uid://clgpfmk70np2u"
